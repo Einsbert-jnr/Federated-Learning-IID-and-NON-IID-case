@@ -5,44 +5,50 @@ import pickle
 
 
 VERBOSE = 0
-NUM_CLIENTS = 4
+NUM_CLIENTS = 3
+
 def weighted_average(metrics):
+    """Aggregate regression metrics from clients"""
     total_samples = sum(num_samples for num_samples, _ in metrics)
-    agg_loss = sum(num_samples * m.get("loss",0) for num_samples, m in metrics) / total_samples
-    agg_accuracy = sum(num_samples * m.get("accuracy",1) for num_samples, m in metrics) / total_samples
+    
+    # Aggregate regression metrics
+    agg_loss = sum(num_samples * m.get("loss", 0) for num_samples, m in metrics) / total_samples
+    agg_mae = sum(num_samples * m.get("mae", 0) for num_samples, m in metrics) / total_samples
+    agg_mse = sum(num_samples * m.get("mse", 0) for num_samples, m in metrics) / total_samples
+    agg_rmse = sum(num_samples * m.get("rmse", 0) for num_samples, m in metrics) / total_samples
+    agg_r2 = sum(num_samples * m.get("r2", 0) for num_samples, m in metrics) / total_samples
+    
+    # Print individual client metrics
+    print(f"\n{'='*50}")
+    print(f"FEDERATED ROUND METRICS SUMMARY")
+    print(f"{'='*50}")
+    
+    for i, (num_samples, m) in enumerate(metrics):
+        print(f"Client {i+1} (samples: {num_samples}):")
+        print(f"  Loss: {m.get('loss', 0):.5f}")
+        print(f"  MAE: {m.get('mae', 0):.5f}")
+        print(f"  MSE: {m.get('mse', 0):.5f}")
+        print(f"  RMSE: {m.get('rmse', 0):.5f}")
+        print(f"  R²: {m.get('r2', 0):.5f}")
+        print()
+    
+    print(f"AGGREGATED METRICS:")
+    print(f"  Weighted Loss: {agg_loss:.5f}")
+    print(f"  Weighted MAE: {agg_mae:.5f}")
+    print(f"  Weighted MSE: {agg_mse:.5f}")
+    print(f"  Weighted RMSE: {agg_rmse:.5f}")
+    print(f"  Weighted R²: {agg_r2:.5f}")
+    print(f"{'='*50}\n")
 
-    # Collect classification reports
-    classification_reports = [m.get("classification_report", 2) for _, m in metrics]
+    return {
+        "agg_loss": agg_loss, 
+        "agg_mae": agg_mae,
+        "agg_mse": agg_mse,
+        "agg_rmse": agg_rmse,
+        "agg_r2": agg_r2
+    }
 
-    # Print each classification report with client number
-    for i, report in enumerate(classification_reports):
-        print(f"Classification report for client {i+1}:\n{report}\n")
 
-    return {"agg_loss": agg_loss, "agg_accuracy": agg_accuracy}
-
-
-from typing import Dict, List, Tuple
-
-def get_evaluate_fn(X_test, y_test):
-    """Return an evaluation function for server-side (i.e. centralised) evaluation."""
-
-    # The `evaluate` function will be called after every round by the strategy
-    def evaluate(
-        server_round: int,
-        parameters: fl.common.NDArrays,
-        config: Dict[str, fl.common.Scalar],
-    ):
-        model = get_ann()  # Construct the model
-        # model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
-        model.set_weights(parameters)  # Update model with the latest parameters
-        loss, accuracy = model.evaluate(X_test, y_test, verbose=VERBOSE)
-        y_pred = model.predict(X_test)
-        y_pred = (y_pred > 0.5)
-        class_report = classification_report(y_test, y_pred, digits=5)
-
-        return loss, {"loss":loss, "accuracy": accuracy, "Centralised report": class_report}
-
-    return evaluate
 strategy = fl.server.strategy.FedAvg(
     fraction_fit=1.0,  # Sample 100% of available clients for training
     fraction_evaluate=1.0,  # Sample 100% of available clients for evaluation
@@ -59,5 +65,5 @@ history = fl.server.start_server(
     strategy=strategy,
     )
 
-with open('history3.pickle', 'wb') as f:
+with open('results/history.pickle', 'wb') as f:
     pickle.dump(history, f)
