@@ -10,8 +10,8 @@ from preprocessing import load_and_preprocess_data, FlowerClient
 
 # load and preprocess data
 env = "urban"
-X_train, y_train, X_test, y_test = load_and_preprocess_data(env)
+X_train, y_train, X_test, y_test, y_scaler = load_and_preprocess_data(env)
 
 
 fl.client.start_client(server_address="localhost:8080",
-                            client=FlowerClient(get_ann(), X_train, y_train, X_test, y_test).to_client())
+                            client=FlowerClient(get_ann(), X_train, y_train, X_test, y_test, y_scaler).to_client())
