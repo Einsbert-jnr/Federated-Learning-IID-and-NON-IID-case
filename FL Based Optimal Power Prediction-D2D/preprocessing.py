@@ -5,7 +5,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.utils import shuffle
 import flwr as fl
-from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from model_ann import get_ann
 
 
@@ -32,16 +32,20 @@ def splittingDataset(dataset_path):
 
 def preprocessing(X_train, y_train, X_test, y_test):
     # Normalize data
-    scalar = StandardScaler()
-    scalar.fit(X_train)
-    X_train_scaled = scalar.transform(X_train)
-    # y_train_scaled = scalar.transform(y_train) # scaling isn't needed
-    # y_test_scaled = scalar.transform(y_test) # scalig isn't needed
-    X_test_scaled = scalar.transform(X_test)
+    X_scalar = StandardScaler()
+    X_scalar.fit(X_train)
+    X_train_scaled = X_scalar.transform(X_train)
+    X_test_scaled = X_scalar.transform(X_test)
+
+
+    # Scale targets (not always necessary for regression, but can help)
+    y_scaler = StandardScaler()
+    y_train_scaled = y_scaler.fit_transform(y_train.values.reshape(-1, 1))
+    y_test_scaled = y_scaler.transform(y_test.values.reshape(-1, 1))
 
     print(f"X_train shape: {X_train_scaled.shape}, X_test shape: {X_test_scaled.shape}")
 
-    return X_train_scaled, y_train, X_test_scaled, y_test
+    return X_train_scaled, y_train_scaled, X_test_scaled, y_test_scaled, y_scaler
 
 
 
@@ -61,13 +65,14 @@ def load_and_preprocess_data(env):
 
 VERBOSE = 0
 class FlowerClient(fl.client.NumPyClient):
-    def __init__(self, model, X_train, y_train, X_test, y_test):
-        self.model = get_ann()
+    def __init__(self, model, X_train, y_train, X_test, y_test, y_scaler):
+        self.model = model
         # self.model.build(self, input_shape=(None, 43))
         self.X_train = X_train
         self.y_train = y_train
         self.X_test = X_test
         self.y_test = y_test
+        self.y_scalar = y_scaler
 
     def get_parameters(self, config):
         return self.model.get_weights()
@@ -76,7 +81,7 @@ class FlowerClient(fl.client.NumPyClient):
         """Train the model with the provided parameters."""
         self.model.set_weights(parameters)
         
-        self.model.fit(self.X_train, self.y_train, validation_split=0.2, epochs=1, batch_size=256, verbose=VERBOSE)
+        self.model.fit(self.X_train, self.y_train, validation_split=0.2, epochs=10, batch_size=256, verbose=VERBOSE)
 
         return self.model.get_weights(), len(self.X_train), {}
 
@@ -88,14 +93,19 @@ class FlowerClient(fl.client.NumPyClient):
         # Predictions
         y_pred = self.model.predict(self.X_test, verbose=VERBOSE)
 
-        # Extra regression metrics
-        mse = mean_squared_error(self.y_test, y_pred)
+        #Inverse transform targets and predictions
+        y_pred_inv = self.y_scalar.inverse_transform(y_pred)
+        y_test_inv = self.y_scalar.inverse_transform(self.y_test)
+
+        # Extra regression metrics in original scale
+        mse = mean_squared_error(y_test_inv, y_pred_inv)
         rmse = np.sqrt(mse)
-        r2 = r2_score(self.y_test, y_pred)
+        r2 = r2_score(y_test_inv, y_pred_inv)
+        mae_inv = mean_absolute_error(y_test_inv, y_pred_inv)
 
         return loss, len(self.X_test), {
             "loss": loss,
-            "mae": mae,
+            "mae": mae_inv,
             "mse": mse,
             "rmse": rmse,
             "r2": r2
