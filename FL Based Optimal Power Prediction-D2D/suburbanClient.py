@@ -10,7 +10,7 @@ import numpy as np
 
 # load and preprocess data
 env = "suburban"
-X_train, y_train, X_test, y_test = load_and_preprocess_data(env)
+X_train, y_train, X_test, y_test, y_scaler = load_and_preprocess_data(env)
 
 fl.client.start_client(server_address="localhost:8080", 
-                        client=FlowerClient(get_ann(), X_train, y_train, X_test, y_test).to_client())
+                        client=FlowerClient(get_ann(), X_train, y_train, X_test, y_test, y_scaler).to_client())
