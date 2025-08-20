@@ -6,6 +6,7 @@ import pickle
 
 VERBOSE = 0
 NUM_CLIENTS = 3
+ROUNDS = 2
 
 def weighted_average(metrics):
     """Aggregate regression metrics from clients"""
@@ -61,7 +62,7 @@ strategy = fl.server.strategy.FedAvg(
 
 history = fl.server.start_server(
     server_address="localhost:8080",
-    config=fl.server.ServerConfig(num_rounds=20),
+    config=fl.server.ServerConfig(num_rounds=ROUNDS),
     strategy=strategy,
     )
 
